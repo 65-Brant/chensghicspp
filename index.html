@@ -1,0 +1,555 @@
+为了极大地提升产品的**美观度**和**价值感**，让它看起来更像一个专业的付费级产品（类似小红书上流行的心理测试），我对代码进行了全面的 **UI/UX 重构**。
+
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CitySoul - 城市灵魂契合度测试</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 高级极光配色 */
+            --bg-1: #4158D0;
+            --bg-2: #C850C0;
+            --bg-3: #FFCC70;
+            --primary: #6C5DD3;
+            --accent: #FF5A5F;
+            --glass: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --text-main: #2D3436;
+            --text-sub: #636E72;
+            --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.08);
+            --shadow-strong: 0 15px 35px rgba(108, 93, 211, 0.25);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body { 
+            margin: 0; padding: 0; 
+            font-family: 'Outfit', 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 46%, var(--bg-3) 100%);
+            color: var(--text-main); 
+            min-height: 100vh; min-height: 100dvh; 
+            display: flex; justify-content: center; align-items: flex-start;
+            background-attachment: fixed; /* 背景固定 */
+        }
+        
+        /* 动态背景噪点，增加质感 */
+        body::before {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 0;
+        }
+
+        #app { 
+            width: 100%; max-width: 450px; 
+            min-height: 100vh; min-height: 100dvh;
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column;
+            overflow-x: hidden;
+            background: rgba(255, 255, 255, 0.3); /* 整体淡白遮罩 */
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.1);
+        }
+
+        /* === 动画定义 === */
+        .fade-in { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === 组件样式 === */
+        .hidden { display: none !important; }
+
+        .btn {
+            background: var(--text-main);
+            color: white; border: none; padding: 18px 0; border-radius: 16px;
+            font-size: 16px; font-weight: 700; width: 100%; letter-spacing: 1px;
+            cursor: pointer; position: relative; overflow: hidden;
+            box-shadow: 0 10px 20px rgba(45, 52, 54, 0.15);
+            transition: all 0.2s;
+        }
+        .btn:active { transform: scale(0.97); box-shadow: 0 5px 10px rgba(45, 52, 54, 0.1); }
+        
+        /* 首页 Header */
+        .landing-wrapper { padding: 40px 24px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .brand-pill {
+            background: rgba(255,255,255,0.9); padding: 6px 16px; border-radius: 50px;
+            font-size: 12px; font-weight: 800; color: var(--primary); 
+            display: inline-block; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            align-self: flex-start;
+        }
+        .main-title { font-size: 42px; line-height: 1.1; font-weight: 900; margin-bottom: 15px; color: #1a1a1a; letter-spacing: -1px; }
+        .sub-title { font-size: 16px; color: #555; line-height: 1.6; margin-bottom: 40px; opacity: 0.8; }
+
+        /* 入口卡片 */
+        .mode-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 24px; border-radius: 24px;
+            margin-bottom: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between;
+            transition: all 0.3s ease; box-shadow: var(--shadow-soft);
+        }
+        .mode-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-strong); border-color: white; }
+        .mode-info h3 { margin: 0 0 6px 0; font-size: 18px; font-weight: 700; }
+        .mode-info p { margin: 0; font-size: 13px; color: var(--text-sub); }
+        .mode-icon { font-size: 32px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
+
+        /* 门禁弹窗 */
+        #gate-modal { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(45, 52, 54, 0.4); z-index: 1000; 
+            display: flex; align-items: center; justify-content: center; 
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        }
+        .gate-box { 
+            background: rgba(255, 255, 255, 0.95); width: 85%; max-width: 320px; 
+            padding: 35px 25px; border-radius: 30px; text-align: center; 
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15); border: 1px solid white;
+        }
+        .input-code {
+            width: 100%; background: #F0F2F5; border: none; padding: 16px; margin: 25px 0;
+            border-radius: 12px; font-size: 20px; text-align: center; font-weight: 800;
+            letter-spacing: 4px; color: var(--primary); text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .input-code:focus { background: white; box-shadow: 0 0 0 2px var(--primary); }
+
+        /* 答题界面 */
+        .quiz-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .progress-container { width: 100%; height: 6px; background: rgba(0,0,0,0.05); border-radius: 10px; overflow: hidden; margin-top: 10px; }
+        .progress-bar { height: 100%; background: var(--primary); width: 0%; border-radius: 10px; transition: width 0.4s ease; }
+        .chapter-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-sub); margin-bottom: 8px; display: block; }
+        
+        .question-card { 
+            margin: 10px 24px; padding: 0 0 40px 0;
+            display: flex; flex-direction: column; min-height: 60vh;
+        }
+        .question-text { font-size: 24px; font-weight: 700; line-height: 1.4; margin-bottom: 30px; color: #1a1a1a; }
+        
+        .option-btn {
+            background: white; border: 1px solid rgba(0,0,0,0.05); 
+            padding: 18px 20px; margin-bottom: 12px; border-radius: 16px;
+            display: flex; align-items: center; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03); transition: all 0.2s;
+        }
+        .option-btn:active { transform: scale(0.98); background: #F8F9FA; border-color: var(--primary); }
+        .option-letter { 
+            background: #F0F2F5; color: var(--text-main); font-weight: 800;
+            width: 32px; height: 32px; border-radius: 10px; margin-right: 15px;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+
+        /* 结果页 - 海报风格 */
+        #result-page { background: #fff; min-height: 100vh; position: relative; }
+        .result-hero {
+            height: 400px; width: 100%; position: relative; overflow: hidden;
+            clip-path: ellipse(150% 100% at 50% 0%); /* 弧形底部 */
+        }
+        .result-bg { width: 100%; height: 100%; object-fit: cover; }
+        .result-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(255,255,255,1) 90%);
+            display: flex; flex-direction: column; justify-content: flex-end; padding: 0 30px 40px;
+        }
+        
+        .city-name-big { font-size: 64px; font-weight: 900; line-height: 1; letter-spacing: -2px; margin-bottom: 5px; color: #1a1a1a; }
+        .match-tag { 
+            display: inline-flex; align-items: center; background: #1a1a1a; color: white;
+            padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: 700;
+            margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .result-body { padding: 0 30px 60px; }
+        .slogan-text { font-size: 18px; font-weight: 300; font-style: italic; color: #555; margin-bottom: 30px; border-left: 3px solid var(--primary); padding-left: 15px; }
+        
+        .analysis-card { background: #F8F9FA; padding: 25px; border-radius: 20px; margin-bottom: 25px; font-size: 15px; line-height: 1.7; color: #444; text-align: justify; }
+        
+        /* 雷达图容器 */
+        .radar-box { position: relative; margin: 20px -10px 40px; height: 280px; }
+        
+        /* 职业建议 */
+        .info-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 40px; }
+        .info-item { display: flex; align-items: center; background: white; border: 1px solid #eee; padding: 15px; border-radius: 12px; }
+        .info-label { font-size: 12px; color: #888; text-transform: uppercase; font-weight: 700; width: 60px; }
+        .info-val { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+
+        /* 分享框 */
+        .share-dashed-box {
+            border: 2px dashed var(--primary); border-radius: 16px;
+            background: rgba(108, 93, 211, 0.05); padding: 20px;
+            text-align: center; margin-bottom: 30px;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+        }
+        .share-icon { font-size: 24px; animation: bounce 2s infinite; }
+        .share-text { font-size: 14px; font-weight: 700; color: var(--primary); }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-5px);} 60% {transform: translateY(-3px);} }
+
+        /* 水印 */
+        .watermark { 
+            text-align: center; color: #ccc; font-size: 11px; margin-top: 20px; 
+            letter-spacing: 1px; text-transform: uppercase; font-weight: 700;
+        }
+
+        /* 截图引导遮罩 */
+        #screenshot-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="landing-page" class="landing-wrapper fade-in">
+        <div class="brand-pill">✨ CitySoul Lab</div>
+        <h1 class="main-title">寻找你的<br>灵魂栖息地</h1>
+        <p class="sub-title">有些城市，你从未去过，却感觉那是家。<br>30道深度情景题，揭秘你的城市CP。</p>
+        
+        <div class="mode-card delay-1" onclick="openGate('domestic')">
+            <div class="mode-info">
+                <h3>国内匹配</h3>
+                <p>寻找国内的精神老家</p>
+            </div>
+            <span class="mode-icon">🇨🇳</span>
+        </div>
+        
+        <div class="mode-card delay-2" onclick="openGate('global')">
+            <div class="mode-info">
+                <h3>国际匹配</h3>
+                <p>寻找全球灵魂伴侣</p>
+            </div>
+            <span class="mode-icon">🌍</span>
+        </div>
+
+        <div style="margin-top:auto; text-align:center; font-size:12px; color:rgba(0,0,0,0.3); padding-top:20px;">
+            🔥 今日已有 3,429 人找到归属
+        </div>
+    </div>
+
+    <div id="gate-modal" class="hidden">
+        <div class="gate-box fade-in">
+            <div style="font-size:40px; margin-bottom:10px;">🔐</div>
+            <h3 style="margin:0 0 10px 0; color:#2D3436;">开启测试</h3>
+            <p style="font-size:13px; color:#636E72; line-height:1.5;">本测试每日限量开放<br>请输入今日通行证</p>
+            
+            <input type="text" id="invite-code" class="input-code" placeholder="CODE" maxlength="8">
+            
+            <button class="btn" onclick="checkCode()" style="background:var(--primary);">立即解锁</button>
+            
+            <div style="margin-top:20px; font-size:12px;">
+                <span style="color:#b2bec3;">没有邀请码？</span> 
+                <a href="#" onclick="alert('请关注公众号或群公告获取')" style="color:var(--primary); font-weight:700; text-decoration:none;">点击获取</a>
+            </div>
+            <div style="margin-top:25px; cursor:pointer; color:#dfe6e9;" onclick="closeGate()">关闭</div>
+        </div>
+    </div>
+
+    <div id="quiz-container" class="hidden fade-in">
+        <div class="quiz-header">
+            <span id="chapter-tag" class="chapter-badge">CHAPTER 1</span>
+            <span style="font-size:12px; font-weight:700; color:var(--primary); opacity:0.6;">CitySoul</span>
+        </div>
+        <div style="padding:0 24px;">
+            <div class="progress-container"><div class="progress-bar" id="progress-fill"></div></div>
+        </div>
+        
+        <div class="question-card">
+            <div class="question-text" id="question-text">题目加载中...</div>
+            <div id="options-container"></div>
+        </div>
+    </div>
+
+    <div id="loading-page" class="hidden" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; background:white;">
+        <div style="font-size:50px; margin-bottom:20px; animation:bounce 1s infinite;">🧠</div>
+        <h3 style="color:#2D3436;">正在分析潜意识...</h3>
+        <p style="color:#B2BEC3; font-size:13px; margin-top:5px;">比对全球城市数据库特征</p>
+    </div>
+
+    <div id="result-page" class="hidden fade-in">
+        <div class="result-hero">
+            <img id="result-bg-img" class="result-bg" src="" alt="City">
+            <div class="result-overlay">
+                <div class="match-tag">契合度 <span id="match-rate" style="margin-left:5px;">98%</span></div>
+                <div class="city-name-big" id="res-city-name">Shanghai</div>
+            </div>
+        </div>
+        
+        <div class="result-body">
+            <div class="tags-row" id="res-tags"></div>
+            <div class="slogan-text" id="res-slogan"></div>
+            
+            <div class="radar-box">
+                <canvas id="radarChart"></canvas>
+            </div>
+
+            <div class="section-title">✨ 灵魂解析</div>
+            <div class="analysis-card" id="res-desc"></div>
+
+            <div class="section-title">📍 宜居指南</div>
+            <div class="info-grid" id="res-advice"></div>
+
+            <div class="share-dashed-box">
+                <div class="share-icon">📸</div>
+                <div class="share-text">截图分享至评论区<br>寻找你的同城 CP</div>
+            </div>
+
+            <button class="btn" onclick="location.reload()" style="background:#F0F2F5; color:#2D3436; margin-top:10px;">再测一次</button>
+            
+            <div class="watermark">CITYSOUL LAB © 2026 | 邀请码 00000E</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================= 配置数据 =================
+    const VALID_CODES = ['00000E', 'VIP888'];
+    let currentMode = 'domestic';
+    let userScores = [0, 0, 0, 0, 0]; // 搞钱, 节奏, 社交, 审美, 松弛
+    let currentQIndex = 0;
+    let currentQuestionBank = [];
+
+    // 国内题库 (完整长句)
+    const QUESTIONS_DOMESTIC = [
+        { q: "周末早晨，你通常是在什么状态下醒来的？", options: [{t:"脑子里马上弹出今天的“待办清单”", w:[1,1,0,0,-1]}, {t:"睡到自然醒，刷刷手机赖会儿床", w:[-1,-1,0,0,1]}, {t:"被某种期待唤醒，想立刻出门玩", w:[0,1,1,0,0]}, {t:"希望能一直躺在安静的房间里", w:[0,-1,-1,0,1]}] },
+        { q: "如果给你一个“任意门”，下班后你最想直接穿越到哪里？", options: [{t:"一个能看到城市天际线的高空酒吧", w:[1,0,1,1,0]}, {t:"一个只有猫和书的无人咖啡馆", w:[0,-1,-1,1,1]}, {t:"充满烟火气、老板认识你的路边摊", w:[0,0,1,-1,1]}, {t:"没有任何人认识你的陌生街头漫步", w:[0,0,-1,1,0]}] },
+        { q: "面对即将到来的长假，你的第一反应是？", options: [{t:"终于可以去那个网红展/音乐节打卡了！", w:[0,1,1,1,0]}, {t:"找个深山民宿或者海边，躺着发呆", w:[0,-1,-1,0,1]}, {t:"做一份详细的特种兵旅游攻略，吃遍当地", w:[0,1,0,0,-1]}, {t:"利用这段时间通过学习或副业弯道超车", w:[1,1,0,0,-1]}] },
+        { q: "你最无法忍受一个城市的哪种缺点？", options: [{t:"毫无秩序，办事效率极低", w:[1,1,0,0,-1]}, {t:"美食荒漠，只有连锁店没有特色", w:[0,0,0,0,1]}, {t:"过于冷漠，邻居住了三年都不认识", w:[0,0,1,0,0]}, {t:"没有夜生活，晚上9点街上就没人了", w:[0,1,1,0,0]}] },
+        { q: "你觉得什么样的声音最治愈你？", options: [{t:"键盘敲击声和咖啡机的运转声", w:[1,1,0,0,0]}, {t:"菜市场的人声鼎沸和锅铲翻炒声", w:[0,0,1,0,1]}, {t:"深夜窗外的雨声和黑胶唱片的沙沙声", w:[0,-1,-1,1,1]}, {t:"朋友聚会时酒杯碰撞和开怀大笑的声音", w:[0,0,1,0,1]}] },
+        { q: "上下班通勤路上，你最希望拥有哪种体验？", options: [{t:"在地铁里快速穿梭，看着形形色色的人流", w:[0,1,0,0,-1]}, {t:"骑着电驴或自行车，吹着风穿过小巷", w:[0,-1,0,1,1]}, {t:"自己开车，在这个城市的环线上听着播客", w:[1,0,-1,0,0]}, {t:"走路上下班，路过熟悉的咖啡店和花店", w:[0,-1,0,1,1]}] },
+        { q: "如果你要租房，窗外的景色必须是？", options: [{t:"璀璨繁华的 CBD 夜景，觉得自己拥有了世界", w:[1,0,0,1,-1]}, {t:"连绵的远山或者宁静的湖面", w:[-1,-1,0,1,1]}, {t:"充满历史感的红砖瓦墙或老洋房屋顶", w:[0,-1,0,1,0]}, {t:"楼下就是熙熙攘攘的夜市，充满烟火气", w:[0,0,1,0,1]}] },
+        { q: "到了深夜 11 点，你的状态通常是？", options: [{t:"还在公司加班，或者刚结束一场商务应酬", w:[1,1,1,0,-1]}, {t:"已经洗漱完毕，躺在床上准备入睡", w:[0,-1,0,0,1]}, {t:"也就是夜生活的开始，准备去喝一杯", w:[0,0,1,1,0]}, {t:"一个人在家里打游戏、追剧，享受独处", w:[0,-1,-1,0,1]}] },
+        { q: "你更倾向于哪种饮食习惯？", options: [{t:"精致的 Brunch 或 Omakase，颜值和味道都要在线", w:[1,0,0,1,0]}, {t:"哪怕排队两小时也要吃到的苍蝇馆子火锅", w:[0,0,1,0,1]}, {t:"方便快捷的沙拉或便利店饭团，填饱肚子就行", w:[1,1,0,0,-1]}, {t:"讲究食材原产地，最好是早市刚买的新鲜菜", w:[0,-1,0,0,1]}] },
+        { q: "如果要在城市里散步，你更喜欢去？", options: [{t:"精品店林立的时尚街区，看来来往往的潮人", w:[1,0,1,1,0]}, {t:"拥有百年历史的古迹或胡同巷弄", w:[0,-1,0,1,0]}, {t:"沿着江边或海边的栈道吹风", w:[0,0,0,1,1]}, {t:"随便走走，哪里人少去哪里", w:[0,-1,-1,0,1]}] },
+        { q: "在一个陌生派对上，你会？", options: [{t:"迅速成为焦点，和大家打成一片", w:[0,0,2,0,0]}, {t:"找到一个看起来顺眼的人深聊一整晚", w:[0,0,0,1,0]}, {t:"躲在角落观察大家，或者只和认识的朋友说话", w:[0,0,-1,0,0]}, {t:"待一会儿就想溜走，觉得不如回家躺着", w:[0,0,-2,0,1]}] },
+        { q: "邻居来敲门送你一盘饺子，你的第一反应是？", options: [{t:"很开心，马上回礼，并邀请他进来坐坐", w:[0,0,2,0,0]}, {t:"有点不知所措，在这个城市居然还有这种操作？", w:[0,0,0,0,-1]}, {t:"礼貌收下，但内心觉得被打扰了私人空间", w:[0,0,-1,0,0]}, {t:"怀疑他是不是有什么企图或求助", w:[0,0,-1,0,-1]}] },
+        { q: "你最讨厌哪种人际关系氛围？", options: [{t:"虚伪客套，表面笑嘻嘻背后捅刀子", w:[0,0,-1,0,0]}, {t:"毫无边界感，七大姑八大姨都要管你的事", w:[0,0,0,1,0]}, {t:"过于功利，每个人交朋友都带着目的", w:[-1,0,0,0,0]}, {t:"死气沉沉，大家都不爱说话，极度压抑", w:[0,0,1,0,0]}] },
+        { q: "走在路上，如果有人穿得很奇特（比如汉服或Cosplay），你会？", options: [{t:"见怪不怪，甚至想上去合影", w:[0,0,1,1,0]}, {t:"会多看两眼，并在心里默默评价", w:[0,0,0,1,-1]}, {t:"完全无视，每个人都有自己的生活", w:[0,1,-1,0,0]}, {t:"觉得有点尴尬，为什么要在公共场合这样", w:[0,0,-1,-1,0]}] },
+        { q: "你理想的朋友圈子是？", options: [{t:"各行各业都有，人脉资源广", w:[2,0,1,0,0]}, {t:"三两个知心好友，平时不联系，有事真上", w:[0,0,1,0,1]}, {t:"一起吃喝玩乐的酒肉朋友，开心最重要", w:[0,0,1,0,1]}, {t:"有共同兴趣爱好的小圈子（如同好会）", w:[0,0,0,1,0]}] },
+        { q: "面对恋情，你更倾向于？", options: [{t:"势均力敌，两个人一起搞事业", w:[2,1,0,0,0]}, {t:"浪漫至上，哪怕穷也要有情调", w:[-1,0,0,2,0]}, {t:"柴米油盐，平平淡淡才是真", w:[0,-1,0,0,1]}, {t:"开放式关系，互不干涉自由", w:[0,0,0,1,1]}] },
+        { q: "当你感到孤独时，你会？", options: [{t:"去最热闹的夜店蹦迪，用喧嚣淹没孤独", w:[0,1,2,0,0]}, {t:"一个人去电影院看一场午夜场电影", w:[0,0,-1,1,0]}, {t:"疯狂工作，让自己没时间想这些", w:[1,1,0,0,-1]}, {t:"打电话给家人或朋友倾诉", w:[0,0,1,0,1]}] },
+        { q: "你怎么看待“面子”这件事？", options: [{t:"非常重要，出门必须体面，不能让人看扁", w:[1,0,0,1,-1]}, {t:"不重要，自己舒服最重要，穿拖鞋也能逛商场", w:[0,-1,0,0,2]}, {t:"看场合，工作时要面子，私下无所谓", w:[0,0,0,0,0]}, {t:"什么是面子？只要能搞到钱/达到目的就行", w:[2,0,0,-1,0]}] },
+        { q: "路上遇到有人吵架，你会？", options: [{t:"停下来看热闹，顺便拍个视频", w:[0,0,1,0,1]}, {t:"赶紧走开，不想惹麻烦", w:[0,1,-1,0,0]}, {t:"如果情况严重会上去劝架或报警", w:[0,0,1,0,0]}, {t:"觉得很烦躁，为什么这么吵", w:[0,0,-1,1,-1]}] },
+        { q: "你希望你的城市对外地人的态度是？", options: [{t:"来了就是自己人，大家一起搞钱", w:[2,1,0,0,0]}, {t:"无论你从哪里来，坐下一起喝茶/吃火锅", w:[0,-1,1,0,1]}, {t:"需要你懂这里的规矩和腔调，才能融入", w:[0,0,-1,1,-1]}, {t:"不太关心你是谁，大家各过各的", w:[0,1,-1,0,0]}] },
+        { q: "如果突然失业了，手里有一笔赔偿金，你会？", options: [{t:"立刻开始找下一份工作，不能停止搞钱", w:[1,1,0,0,-2]}, {t:"先去旅行一个月，回来再说", w:[-1,-1,0,1,1]}, {t:"趁机创业或做自己一直想做的小生意", w:[1,1,0,0,0]}, {t:"回老家躺平，或者考公考编求稳", w:[0,-1,0,0,2]}] },
+        { q: "你认为人生的终极意义是？", options: [{t:"站在顶峰，拥有权力和财富", w:[2,1,0,0,-1]}, {t:"体验尽可能多的新鲜事物，不枉此生", w:[0,0,0,1,1]}, {t:"建立一个幸福温暖的家庭", w:[0,0,1,0,1]}, {t:"创造出能留存下来的作品或思想", w:[0,0,0,2,0]}] },
+        { q: "面对高房价，你的态度是？", options: [{t:"咬牙也要买，这是在这个城市立足的根本", w:[1,0,0,0,-1]}, {t:"租房挺好，随时能换地方，不当房奴", w:[0,0,0,0,2]}, {t:"努力赚钱买，这是一种投资手段", w:[2,0,0,0,0]}, {t:"房价太高我就换个城市生活", w:[0,-1,0,0,1]}] },
+        { q: "看到一个看不懂的现代艺术品，你会？", options: [{t:"试图理解作者想表达什么深意", w:[0,0,0,2,0]}, {t:"觉得这就是在骗钱/装逼", w:[1,0,0,-1,0]}, {t:"不管懂不懂，先拍张好看的照片发朋友圈", w:[0,0,1,0,0]}, {t:"没什么感觉，直接走过去", w:[0,1,0,0,0]}] },
+        { q: "如果让你选择一种超能力，你选？", options: [{t:"永远精力充沛，不需要睡觉", w:[1,2,0,0,-2]}, {t:"瞬间移动，想去哪里去哪里", w:[0,1,0,0,2]}, {t:"读心术，看穿所有人的想法", w:[0,0,2,0,-1]}, {t:"时间静止，享受片刻的宁静", w:[0,-1,-1,0,2]}] },
+        { q: "你更喜欢哪种工作模式？", options: [{t:"大厂螺丝钉，高薪但要在写字楼里996", w:[2,2,0,0,-2]}, {t:"自由职业/数字游民，在海边敲代码", w:[0,0,-1,1,1]}, {t:"体制内，稳定清闲，朝九晚五", w:[-1,-1,0,0,2]}, {t:"创业公司，充满不确定性但有期权", w:[2,2,0,0,-1]}] },
+        { q: "遇到严重的雾霾或糟糕的天气，你会？", options: [{t:"戴上口罩继续出门搬砖", w:[1,1,0,0,-1]}, {t:"心情极度抑郁，想马上买机票逃离", w:[0,0,0,1,0]}, {t:"在家里开着空气净化器，假装外面不存在", w:[0,-1,-1,0,1]}, {t:"开始思考人类的环境问题", w:[0,0,0,1,0]}] },
+        { q: "你觉得什么是“成功”？", options: [{t:"银行卡里的数字和名下的资产", w:[2,0,0,0,0]}, {t:"每天都能睡到自然醒，没有压力", w:[-1,-1,0,0,2]}, {t:"有一群随时能叫出来的真朋友", w:[0,0,2,0,0]}, {t:"在某个领域做到极致，被人尊敬", w:[0,0,0,2,0]}] },
+        { q: "你对“时尚”的态度是？", options: [{t:"紧跟潮流，每季新品都要关注", w:[1,0,1,1,0]}, {t:"有自己的风格，不盲目跟风", w:[0,0,0,2,0]}, {t:"舒服为主，优衣库/T恤短裤走天下", w:[0,0,0,-1,2]}, {t:"觉得时尚圈都是怪人", w:[0,0,-1,-1,0]}] },
+        { q: "（终极题）如果世界末日只剩24小时，你会选择在哪里度过？", options: [{t:"在最繁华的城市中心，看最后一次霓虹灯", w:[0,0,0,1,0]}, {t:"回到出生的老家，和家人在一起", w:[0,-1,1,0,1]}, {t:"在大自然里（山顶/海边），安静地等待", w:[0,-1,-1,1,1]}, {t:"开一场狂欢派对，在音乐中结束", w:[0,1,2,0,0]}] }
+    ];
+
+    // 国际题库 (完整长句)
+    const QUESTIONS_GLOBAL = [
+        { q: "早上醒来的第一杯咖啡，你会选择？", options: [{t:"站在吧台喝完一杯Espresso就走，效率第一", w:[0,2,0,0,-1]}, {t:"自己手冲一杯单品豆，细细品味风味", w:[0,-1,0,2,1]}, {t:"一大杯冰美式，纯粹为了提神醒脑", w:[1,1,0,0,0]}, {t:"坐在露天座位，慢慢喝一杯拿铁晒太阳", w:[0,-1,1,1,2]}] },
+        { q: "你理想中的周末打开方式是？", options: [{t:"去海德公园或草坪上躺着晒背看书", w:[0,-1,1,0,2]}, {t:"逛复古跳蚤市场，淘一些Vintage孤品", w:[0,0,0,2,1]}, {t:"通宵Clubbing，然后第二天睡到中午吃Brunch", w:[0,1,2,0,-1]}, {t:"参加高端行业的Networking酒会拓展人脉", w:[2,0,1,0,-1]}] },
+        { q: "关于西方的小费(Tipping)文化，你的真实态度是？", options: [{t:"服务好就给，这是对劳动者的尊重", w:[1,0,1,0,0]}, {t:"入乡随俗，按最高标准给，不想被看扁", w:[0,0,0,1,0]}, {t:"包含在账单里最好，算来算去太麻烦", w:[0,1,-1,0,1]}, {t:"为什么我要付工资？完全无法理解", w:[0,0,-1,0,-1]}] },
+        { q: "在一个陌生的城市，你更喜欢的交通工具是？", options: [{t:"骑一辆复古自行车，穿梭在小巷里", w:[0,-1,0,2,1]}, {t:"Uber/Taxi，效率至上，不想走路", w:[1,1,0,0,0]}, {t:"复杂的地铁系统，像迷宫一样很有趣", w:[0,1,-1,0,-1]}, {t:"步行，用脚丈量城市的每一寸土地", w:[0,-1,0,1,1]}] },
+        { q: "工作日的午餐时间，你通常如何度过？", options: [{t:"一个三明治在电脑前解决，继续工作", w:[1,2,0,0,-1]}, {t:"带本书去附近的公园草地上吃", w:[0,-1,-1,1,2]}, {t:"和同事去附近的Pub喝一杯啤酒", w:[0,0,2,0,1]}, {t:"去最新开的网红餐厅打卡", w:[0,0,1,1,0]}] },
+        { q: "看到有人在街上即兴表演音乐，你会？", options: [{t:"停下来欣赏一会儿，并给一些零钱", w:[0,-1,1,1,1]}, {t:"匆匆路过，因为赶时间", w:[0,2,-1,0,0]}, {t:"拿出手机拍照发Instagram Story", w:[0,0,0,1,0]}, {t:"加入他们，一起跳舞或律动", w:[0,0,2,0,1]}] },
+        { q: "你对“裸辞间隔年(Gap Year)”的看法是？", options: [{t:"浪费时间，简历上会有空窗期", w:[2,1,0,0,-2]}, {t:"人生必须的充电期，寻找自我", w:[-1,-1,0,0,2]}, {t:"去东南亚或南美穷游，体验生活", w:[0,-1,0,1,1]}, {t:"等实现了财务自由再去享受", w:[1,0,0,0,0]}] },
+        { q: "关于“约会(Dating)”，你更适应哪种模式？", options: [{t:"Tinder/Hinge快餐式约会，效率高", w:[0,2,0,0,-1]}, {t:"去美术馆看展，然后深度聊天", w:[0,-1,0,2,0]}, {t:"在酒吧偶遇，看对眼就行，不问将来", w:[0,0,2,0,1]}, {t:"朋友聚会认识，知根知底比较安全", w:[0,0,1,0,1]}] },
+        { q: "如果去超市采购，你购物车里更多的是？", options: [{t:"有机蔬菜、牛油果和植物奶", w:[0,0,0,1,1]}, {t:"冷冻披萨、薯片和一箱啤酒", w:[0,0,1,0,1]}, {t:"打折区的临期食品，能省则省", w:[0,0,0,0,0]}, {t:"半成品，微波炉叮一下就能吃的", w:[0,2,0,0,-1]}] },
+        { q: "你希望你的公寓窗外也是什么样的景色？", options: [{t:"埃菲尔铁塔或大本钟那样的地标建筑", w:[0,0,0,2,0]}, {t:"永远不眠的霓虹灯牌和车流", w:[0,2,0,1,-1]}, {t:"安静的运河，或者能看到海滩", w:[0,-1,0,0,2]}, {t:"华尔街的摩天大楼，感觉到钱在流动", w:[2,0,0,0,-1]}] },
+        { q: "在公寓电梯里遇到陌生邻居，你会？", options: [{t:"主动Small Talk，聊聊今天的天气", w:[0,0,2,0,0]}, {t:"低头看手机，假装很忙避免视线接触", w:[0,0,-1,0,0]}, {t:"微笑点头致意，但不说话", w:[0,0,0,1,0]}, {t:"完全无视，当做没看见", w:[0,1,-1,0,0]}] },
+        { q: "派对上有人递给你一支烟/酒，你会？", options: [{t:"来者不拒，及时行乐，YOLO!", w:[0,0,2,0,1]}, {t:"礼貌拒绝，保持清醒和自律", w:[1,0,-1,0,-1]}, {t:"借此机会打开话匣子，认识新朋友", w:[0,0,1,0,0]}, {t:"只喝自己带的饮品，注意安全", w:[0,0,-1,1,0]}] },
+        { q: "你如何看待社会中的“规则”？", options: [{t:"红灯即使没车也要等，规则必须遵守", w:[0,-1,-1,0,0]}, {t:"规则有时候是用来打破的", w:[0,0,0,2,1]}, {t:"只要不影响别人，怎么做都行", w:[0,0,1,0,1]}, {t:"效率优先，灵活变通", w:[1,2,0,0,0]}] },
+        { q: "如果你被邀请去一个只有素食(Vegan)的聚餐？", options: [{t:"欣然前往，我很注重健康和环保", w:[0,0,0,1,1]}, {t:"去之前先偷偷吃个汉堡垫底", w:[0,0,1,0,0]}, {t:"内心抗拒但为了社交礼貌参加", w:[0,0,0,0,0]}, {t:"直接拒绝，我是肉食动物", w:[0,0,-1,0,0]}] },
+        { q: "对于“时尚”，你在国外的态度是？", options: [{t:"极简主义，一身黑白灰，不出错", w:[0,0,-1,2,0]}, {t:"去慈善商店淘二手复古衣，拒绝快时尚", w:[0,-1,0,2,1]}, {t:"大牌Logo，展示自己的经济实力", w:[2,0,1,0,-1]}, {t:"卫衣拖鞋，怎么舒服怎么穿", w:[0,0,0,-1,2]}] },
+        { q: "你平时更喜欢的艺术形式是？", options: [{t:"街头涂鸦和地下电子音乐", w:[0,0,1,2,1]}, {t:"古典油画、芭蕾舞和歌剧", w:[0,-1,0,2,0]}, {t:"现代装置艺术和NFT", w:[1,0,0,1,0]}, {t:"看不懂那些，不如看场好莱坞电影", w:[0,0,0,-1,1]}] },
+        { q: "如果你的邻居半夜开派对太吵，你会？", options: [{t:"直接报警投诉噪音扰民", w:[0,0,-2,0,-1]}, {t:"敲门加入他们，一起嗨", w:[0,0,2,0,1]}, {t:"戴上降噪耳塞忍一忍", w:[0,-1,0,0,0]}, {t:"写张纸条贴在他们门上提醒", w:[0,0,-1,1,0]}] },
+        { q: "你对工作的终极态度是？", options: [{t:"Work Hard, Play Hard，拼命工作拼命玩", w:[2,2,0,0,0]}, {t:"工作只是为了赚钱去度假", w:[0,-1,0,0,2]}, {t:"追求改变世界的成就感和影响力", w:[1,0,0,0,-1]}, {t:"到点下班，绝不回工作邮件", w:[0,-1,-1,0,1]}] },
+        { q: "遇到种族或文化冲突的话题，你会？", options: [{t:"积极表达观点，捍卫权利", w:[0,0,1,1,0]}, {t:"保持中立，避免惹麻烦", w:[0,0,-1,0,0]}, {t:"试图用幽默化解尴尬", w:[0,0,2,0,1]}, {t:"直接离开现场", w:[0,1,-1,0,0]}] },
+        { q: "你最欣赏的一个品质是？", options: [{t:"野心 (Ambition)", w:[2,0,0,0,-1]}, {t:"松弛 (Chill)", w:[0,-1,0,0,2]}, {t:"创意 (Creativity)", w:[0,0,0,2,0]}, {t:"包容 (Diversity)", w:[0,0,2,0,0]}] },
+        { q: "如果中了乐透大奖，你会？", options: [{t:"投资初创公司，钱生钱", w:[2,1,0,0,-1]}, {t:"买个私人岛屿隐居", w:[0,-2,-1,0,2]}, {t:"环游世界，永远不再工作", w:[0,-1,0,1,2]}, {t:"在市中心买最贵的顶层公寓", w:[1,0,1,1,0]}] },
+        { q: "世界末日来临，你选择在哪度过？", options: [{t:"在时代广场看最后一次倒数", w:[0,1,2,0,0]}, {t:"在阿尔卑斯山顶滑雪", w:[0,-1,0,1,1]}, {t:"在自家地下室囤满罐头", w:[0,0,-2,0,-1]}, {t:"在伊比萨岛(Ibiza)狂欢至死", w:[0,0,2,0,2]}] },
+        { q: "你更害怕？", options: [{t:"平庸且贫穷", w:[2,0,0,0,-1]}, {t:"孤独无依，没人理解", w:[0,0,2,0,0]}, {t:"失去自由，被束缚", w:[0,0,0,0,2]}, {t:"日复一日的无聊和重复", w:[0,1,0,1,0]}] },
+        { q: "如果能拥有一种天赋，你希望是？", options: [{t:"极强的商业头脑", w:[2,0,0,0,0]}, {t:"无穷的艺术灵感", w:[0,0,0,2,1]}, {t:"社交达人，人见人爱", w:[0,0,2,0,0]}, {t:"永远不焦虑的能力", w:[0,-1,0,0,2]}] },
+        { q: "你觉得什么是真正的奢侈？", options: [{t:"可以自由支配的时间", w:[1,1,0,0,-1]}, {t:"绝对的隐私", w:[0,0,-1,0,0]}, {t:"手工定制的匠人精神", w:[0,0,0,2,0]}, {t:"在海边发呆一整个下午", w:[0,-1,0,0,2]}] },
+        { q: "对于“婚姻”，你的看法是？", options: [{t:"一种合伙人制度，利益最大化", w:[2,0,0,0,-1]}, {t:"必须是灵魂伴侣，宁缺毋滥", w:[0,0,0,2,0]}, {t:"不婚主义，享受自由", w:[0,0,-1,0,2]}, {t:"传统的家庭模式很温暖", w:[0,-1,1,0,0]}] },
+        { q: "在街上看到流浪汉，你会？", options: [{t:"给一些零钱或买点食物", w:[0,0,1,0,0]}, {t:"思考社会结构的不公", w:[0,0,0,1,0]}, {t:"快速走过，注意安全", w:[0,1,-1,0,0]}, {t:"司空见惯，内心无感", w:[0,0,-1,0,0]}] },
+        { q: "如果必须移居，你的首选是？", options: [{t:"充满机遇和挑战的大都会", w:[2,2,0,0,-1]}, {t:"有深厚历史底蕴的古城", w:[0,-1,0,2,0]}, {t:"阳光充足的海滨城市", w:[0,-1,0,0,2]}, {t:"福利好的北欧小镇", w:[0,-2,-1,0,2]}] },
+        { q: "你对“老去”的态度是？", options: [{t:"靠医美和科技保持年轻", w:[1,0,0,1,-1]}, {t:"优雅地自然老去", w:[0,-1,0,2,1]}, {t:"只要心态年轻就行", w:[0,0,1,0,1]}, {t:"不想老，拼命健身对抗", w:[0,1,0,0,0]}] },
+        { q: "最后一题：你现在的状态是？", options: [{t:"渴望成功，充满饥饿感", w:[2,1,0,0,-2]}, {t:"寻找灵感，有点迷茫", w:[0,0,0,2,1]}, {t:"享受当下，及时行乐", w:[0,-1,1,0,2]}, {t:"只想逃离一切", w:[0,-2,-2,0,1]}] }
+    ];
+
+    // ================= 城市数据 =================
+    const DOMESTIC_CITIES = {
+        'shanghai': { name: '上海', slogan: '你的精致与野心，天生属于黄浦江畔。', tags: ['#海派腔调', '#边界感', '#魔都结界'], scores: [5, 5, 2, 5, 2], desc: '你是一个清醒的都市生活家。讨厌没有分寸的打扰，讨厌低效沟通。懂得“互不打扰”背后的高级尊重。向往金字塔尖的风景，也享受梧桐树下的静谧。', bg: 'https://images.unsplash.com/photo-1548919973-5cef591cdbc9?w=600&q=80', advice: [{label:'本命职业',text:'金融分析师 / 策展人'}, {label:'灵魂街区',text:'巨鹿路 / 武康大楼'}, {label:'避雷城市',text:'丽江 (太慢了)'}] },
+        'beijing': { name: '北京', slogan: '在这个折叠的城市，你是改变世界的英雄。', tags: ['#皇城根下', '#硬核浪漫', '#大梦一场'], scores: [4, 4, 5, 3, 2], desc: '你是一个矛盾又迷人的理想主义者。一边吐槽生活的粗糙，一边迷恋宏大的叙事。只有北京的凛冽寒风，能装下你无处安放的巨大野心。', bg: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=600&q=80', advice: [{label:'本命职业',text:'导演 / 创业者'}, {label:'灵魂街区',text:'东四 / 亮马河'}, {label:'避雷城市',text:'上海 (太作了)'}] },
+        'shenzhen': { name: '深圳', slogan: '时间就是金钱，而你是那个跑赢时间的人。', tags: ['#搞钱之都', '#效率至上', '#永远年轻'], scores: [5, 5, 4, 1, 1], desc: '你是一个绝对的实用主义者。讨厌无效社交，讨厌论资排辈。你相信“公平”，相信英雄不问出处。你的安全感不来自户口，而来自余额。', bg: 'https://images.unsplash.com/photo-1595166668705-7f5515286295?w=600&q=80', advice: [{label:'本命职业',text:'产品经理 / 跨境电商'}, {label:'灵魂街区',text:'粤海街道'}, {label:'避雷城市',text:'成都 (太懒了)'}] },
+        'guangzhou': { name: '广州', slogan: '穿最便宜的拖鞋，吃最讲究的早茶。', tags: ['#务实低调', '#美食天堂', '#千年商都'], scores: [5, 3, 5, 2, 5], desc: '你是隐形富豪体质。活得极其通透，不在乎别人的眼光，只在乎这只鸡是不是现杀的。务实、低调，懂得生活的真谛是“平平淡淡才是真”。', bg: 'https://images.unsplash.com/photo-1583569527964-f6735e808620?w=600&q=80', advice: [{label:'本命职业',text:'收租 / 外贸 / 自由职业'}, {label:'灵魂街区',text:'东山口 / 江南西'}, {label:'避雷城市',text:'北京 (没好吃的)'}] },
+        'chongqing': { name: '重庆', slogan: '如果人生是一部电影，那一定是赛博朋克风。', tags: ['#8D魔幻', '#江湖义气', '#火辣直爽'], scores: [3, 4, 5, 4, 4], desc: '你的灵魂里藏着“江湖”。爱憎分明，性格火辣。像这座山城一样，层次丰富，充满生命力。你不需要温吞如水的生活，你需要的是火锅般的热烈滚烫。', bg: 'https://images.unsplash.com/photo-1545645579-2479e057422f?w=600&q=80', advice: [{label:'本命职业',text:'Rapper / 摄影师'}, {label:'灵魂街区',text:'戴家巷 / 北仓'}, {label:'避雷城市',text:'苏州 (急死你)'}] },
+        'suzhou': { name: '苏州', slogan: '左手亿万产业，右手园林昆曲。', tags: ['#双面绣', '#最强地级市', '#温婉搞钱'], scores: [5, 2, 2, 5, 3], desc: '你拥有罕见的“双面人格”。表面上温润如玉，骨子里精明强干。你追求“大隐隐于市”的平衡——白天在写字楼里指点江山，晚上回园林里听雨品茶。', bg: 'https://images.unsplash.com/photo-1622363628470-36e6c8672957?w=600&q=80', advice: [{label:'本命职业',text:'投资人 / 国风设计'}, {label:'灵魂街区',text:'平江路 / 金鸡湖'}, {label:'避雷城市',text:'武汉 (太吵了)'}] },
+        'chengdu': { name: '成都', slogan: '余生很长，何必慌张？', tags: ['#极度包容', '#享乐主义', '#天府之国'], scores: [2, 1, 5, 4, 5], desc: '你拥有极高的“精神松弛感”。你认为工作是为了更好地生活。天大的事也没一顿火锅解决不了的。你不需要别人的认可，只需要当下的快乐。', bg: 'https://images.unsplash.com/photo-1565507963328-9121a539b007?w=600&q=80', advice: [{label:'本命职业',text:'博主 / 店主'}, {label:'灵魂街区',text:'玉林路 / 太古里'}, {label:'避雷城市',text:'深圳 (累死你)'}] },
+        'hangzhou': { name: '杭州', slogan: '在山水之间，做那个站在互联网风口的人。', tags: ['#网红之都', '#数字游民', '#新贵焦虑'], scores: [5, 4, 3, 5, 2], desc: '你追求一种“完美的平衡”。既想要一线城市的互联网红利，又想要西湖的山水。你对美有极高的要求，绝不将就。相信这里是全中国最能把“流量”变现的地方。', bg: 'https://images.unsplash.com/photo-1568267258079-668b200b2184?w=600&q=80', advice: [{label:'本命职业',text:'主播 / 阿里P7'}, {label:'灵魂街区',text:'天目里 / 满觉陇'}, {label:'避雷城市',text:'石家庄 (不够潮)'}] },
+        'wuhan': { name: '武汉', slogan: '不服周！生猛、热烈、直来直往。', tags: ['#朋克之都', '#过早文化', '#江湖气'], scores: [3, 5, 5, 2, 3], desc: '你是一只“打不死的小强”。说话直、脾气急，但心眼极好。你讨厌装腔作势，喜欢真刀真枪地干。在你看来，生活没有什么过不去的坎，骂一句然后跨过去。', bg: 'https://images.unsplash.com/photo-1559134907-7429188d21c4?w=600&q=80', advice: [{label:'本命职业',text:'乐手 / 销售冠军'}, {label:'灵魂街区',text:'江汉路 / 昙华林'}, {label:'避雷城市',text:'杭州 (太绕了)'}] },
+        'nanjing': { name: '南京', slogan: '每一块砖都有历史，每一步都走得稳重。', tags: ['#六朝古都', '#大萝卜', '#内敛稳重'], scores: [3, 2, 3, 5, 4], desc: '你的灵魂带有一种“悲悯的贵气”。你不争不抢，性格宽厚。你对于“速成”的东西不感兴趣，更看重底蕴和根基。在浮躁的时代，你是一股清流。', bg: 'https://images.unsplash.com/photo-1596707328574-e889d18e52f5?w=600&q=80', advice: [{label:'本命职业',text:'高校老师 / 作家'}, {label:'灵魂街区',text:'颐和路 / 夫子庙'}, {label:'避雷城市',text:'深圳 (没味道)'}] }
+    };
+
+    const GLOBAL_CITIES = {
+        'newyork': { name: '纽约', slogan: '如果你能在这里立足，你就能征服任何地方。', tags: ['#世界中心', '#野心之都', '#丛林法则'], scores: [5, 5, 5, 3, 1], desc: '你天生属于聚光灯。拥有无穷精力。热爱混乱，因为藏着阶级跃升的梯子。不在乎地铁脏乱，只在乎这里是最顶级的战场。', bg: 'https://images.unsplash.com/photo-1496442226666-8d4a0e62e6e9?w=600&q=80', advice: [{label:'本命职业',text:'投行 / 时尚女魔头'}, {label:'灵魂街区',text:'曼哈顿 / 布鲁克林'}, {label:'避雷城市',text:'温哥华 (太无聊)'}] },
+        'tokyo': { name: '东京', slogan: '在千万人中，享受极致的秩序与孤独。', tags: ['#赛博朋克', '#社恐天堂', '#工匠精神'], scores: [4, 5, 1, 5, 2], desc: '敏感且尊重规则。享受“人群中保持孤独”的安全感。不想麻烦别人。便利店是灵魂避难所。', bg: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&q=80', advice: [{label:'本命职业',text:'程序员 / 艺术家'}, {label:'灵魂街区',text:'下北泽 / 代官山'}, {label:'避雷城市',text:'里约 (太乱了)'}] },
+        'london': { name: '伦敦', slogan: '历史与现代的完美联姻，永不过时的优雅。', tags: ['#老钱风', '#绅士文化', '#阴雨绵绵'], scores: [5, 4, 3, 5, 3], desc: '骨子里有传统的贵族气质，但又保持开放。喜欢有底蕴的繁华，在酒吧谈哲学。这里的高傲与礼貌，恰好符合你的审美。', bg: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=600&q=80', advice: [{label:'本命职业',text:'金融家 / 戏剧制作人'}, {label:'灵魂街区',text:'Soho / 肯辛顿'}, {label:'避雷城市',text:'洛杉矶 (太土了)'}] },
+        'paris': { name: '巴黎', slogan: '生活就是一场流动的盛宴。', tags: ['#浪漫至死', '#审判路人', '#自由灵魂'], scores: [3, 2, 4, 5, 4], desc: '无可救药的浪漫主义者。甚至有点刻薄，无法忍受没品味。你认为生活绝不能没有艺术。你宁愿坐在路边发呆，也不愿去无聊地赚钱。', bg: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600&q=80', advice: [{label:'本命职业',text:'画家 / 诗人 / 买手'}, {label:'灵魂街区',text:'玛黑区 / 蒙马特'}, {label:'避雷城市',text:'硅谷 (太无趣)'}] },
+        'losangeles': { name: '洛杉矶', slogan: '阳光、海滩与造梦工厂，在这里永远年轻。', tags: ['#好莱坞梦', '#汽车文化', '#Chill'], scores: [4, 2, 5, 3, 5], desc: '热爱自由，讨厌束缚。追求加州阳光状态。你既有成名的野心，又极其享受当下的快乐。', bg: 'https://images.unsplash.com/photo-1580655653885-65763b2597d0?w=600&q=80', advice: [{label:'本命职业',text:'网红 / 演员 / 制片'}, {label:'灵魂街区',text:'比弗利 / 威尼斯海滩'}, {label:'避雷城市',text:'伦敦 (天天下雨)'}] },
+        'singapore': { name: '新加坡', slogan: '极致的效率与秩序，热带的未来花园。', tags: ['#精英治国', '#花园城市', '#安全感'], scores: [5, 5, 3, 4, 2], desc: '完美主义者。喜欢清晰、高效、安全。讨厌混乱不可控。希望付出就有回报。这里的绿色与整洁，能治愈你的强迫症。', bg: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=600&q=80', advice: [{label:'本命职业',text:'跨国高管 / 律师'}, {label:'灵魂街区',text:'滨海湾 / 中峇鲁'}, {label:'避雷城市',text:'印度 (会疯掉)'}] },
+        'berlin': { name: '柏林', slogan: '贫穷但性感，这里是叛逆者的天堂。', tags: ['#Techno', '#地下文化', '#绝对自由'], scores: [2, 3, 4, 4, 5], desc: '反叛者。讨厌一切主流的、商业的、虚伪的东西。喜欢Techno和涂鸦。你不在乎钱，你在乎的是你的灵魂是否真正自由。', bg: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?w=600&q=80', advice: [{label:'本命职业',text:'DJ / 先锋艺术家'}, {label:'灵魂街区',text:'克罗伊茨贝格'}, {label:'避雷城市',text:'迪拜 (太假了)'}] },
+        'seoul': { name: '首尔', slogan: '不睡觉的城市，在压力中疯狂生长。', tags: ['#颜值正义', '#卷王之王', '#不夜城'], scores: [5, 5, 5, 5, 1], desc: '对美有极致的追求。适应高压环境，喜欢快节奏竞争。需要咖啡因和酒精。享受那种所有人都在努力变好（变美）的氛围。', bg: 'https://images.unsplash.com/photo-1538485399081-7191377e8241?w=600&q=80', advice: [{label:'本命职业',text:'练习生 / 设计师'}, {label:'灵魂街区',text:'江南区 / 弘大'}, {label:'避雷城市',text:'清迈 (太懒)'}] },
+        'sydney': { name: '悉尼', slogan: '工作是为了去冲浪，拥抱南半球的阳光。', tags: ['#WorkLifeBalance', '#自然之子', '#治愈'], scores: [4, 2, 4, 5, 5], desc: '无法忍受没有自然。赚钱为了享受。向往冲浪徒步。你既想要大城市的便利，又想要大自然的野性。', bg: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=600&q=80', advice: [{label:'本命职业',text:'理疗师 / 潜水教练'}, {label:'灵魂街区',text:'邦迪海滩'}, {label:'避雷城市',text:'东京 (太压抑)'}] },
+        'dubai': { name: '迪拜', slogan: '在沙漠中建立奇迹，金钱永不眠。', tags: ['#奢华至极', '#未来主义', '#纸醉金迷'], scores: [5, 4, 5, 3, 3], desc: '拥有巨大野心。喜欢这种“人定胜天”的奇迹感。向往极致的财富和享受，不介意环境是否人工。在这里，只要有钱，你就是上帝。', bg: 'https://images.unsplash.com/photo-1512453979798-5ea932a23518?w=600&q=80', advice: [{label:'本命职业',text:'地产大亨 / 豪车销售'}, {label:'灵魂街区',text:'棕榈岛'}, {label:'避雷城市',text:'柏林 (太穷)'}] }
+    };
+
+    // ================= 逻辑逻辑 =================
+    function openGate(mode) {
+        currentMode = mode;
+        currentQuestionBank = (mode === 'domestic') ? QUESTIONS_DOMESTIC : QUESTIONS_GLOBAL;
+        userScores = [0, 0, 0, 0, 0];
+        currentQIndex = 0;
+        document.getElementById('gate-modal').classList.remove('hidden');
+    }
+    
+    function closeGate() { document.getElementById('gate-modal').classList.add('hidden'); }
+
+    function checkCode() {
+        const input = document.getElementById('invite-code').value.toUpperCase();
+        if (VALID_CODES.includes(input)) {
+            closeGate();
+            document.getElementById('landing-page').classList.add('hidden');
+            document.getElementById('quiz-container').classList.remove('hidden');
+            loadQuestion();
+        } else {
+            alert("邀请码无效！\n提示：请输入 00000E");
+        }
+    }
+
+    function loadQuestion() {
+        if (currentQIndex >= currentQuestionBank.length) {
+            showResult();
+            return;
+        }
+        const qData = currentQuestionBank[currentQIndex];
+        const percent = ((currentQIndex) / currentQuestionBank.length) * 100;
+        document.getElementById('progress-fill').style.width = percent + '%';
+        
+        let chapterText = "";
+        if(currentQIndex < 10) chapterText = "CHAPTER 1 / 生活节奏";
+        else if(currentQIndex < 20) chapterText = "CHAPTER 2 / 社交文化";
+        else chapterText = "CHAPTER 3 / 价值取向";
+        document.getElementById('chapter-tag').innerText = chapterText;
+        document.getElementById('question-text').innerText = qData.q;
+        
+        const optsContainer = document.getElementById('options-container');
+        optsContainer.innerHTML = '';
+        const letters = ['A', 'B', 'C', 'D'];
+        qData.options.forEach((opt, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'option-btn';
+            btn.innerHTML = `<span class="option-letter">${letters[idx]}</span><span style="flex:1;">${opt.t}</span>`;
+            btn.onclick = () => handleAnswer(opt.w);
+            optsContainer.appendChild(btn);
+        });
+    }
+
+    function handleAnswer(weights) {
+        weights.forEach((w, i) => userScores[i] += w);
+        currentQIndex++;
+        loadQuestion();
+    }
+
+    function showResult() {
+        document.getElementById('quiz-container').classList.add('hidden');
+        document.getElementById('loading-page').classList.remove('hidden');
+        setTimeout(() => {
+            document.getElementById('loading-page').classList.add('hidden');
+            document.getElementById('result-page').classList.remove('hidden');
+            calculateAndRenderCity();
+        }, 1500);
+    }
+
+    function calculateAndRenderCity() {
+        const DB = currentMode === 'domestic' ? DOMESTIC_CITIES : GLOBAL_CITIES;
+        let bestCityKey = Object.keys(DB)[0];
+        let minDifference = Infinity;
+
+        for (let key in DB) {
+            const cityScores = DB[key].scores;
+            let diff = 0;
+            for(let i=0; i<5; i++) {
+                diff += Math.abs(userScores[i] - (cityScores[i] * 3));
+            }
+            if (diff < minDifference) {
+                minDifference = diff;
+                bestCityKey = key;
+            }
+        }
+        renderPage(DB[bestCityKey]);
+    }
+
+    function renderPage(cityData) {
+        document.getElementById('res-city-name').innerText = cityData.name;
+        document.getElementById('res-slogan').innerText = cityData.slogan;
+        document.getElementById('result-bg-img').src = cityData.bg;
+        document.getElementById('match-rate').innerText = (Math.floor(Math.random() * 4) + 96) + '%';
+        
+        const tagHTML = cityData.tags.map(t => `<span class="tag">${t}</span>`).join('');
+        document.getElementById('res-tags').innerHTML = tagHTML;
+        document.getElementById('res-desc').innerText = cityData.desc;
+        
+        const adviceHTML = cityData.advice.map(a => 
+            `<div class="info-item"><div class="info-label">${a.label}</div><div class="info-val">${a.text}</div></div>`
+        ).join('');
+        document.getElementById('res-advice').innerHTML = adviceHTML;
+
+        const ctx = document.getElementById('radarChart').getContext('2d');
+        if(window.myRadar) window.myRadar.destroy();
+        
+        window.myRadar = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['搞钱/野心', '生活节奏', '社交意愿', '审美追求', '松弛感'],
+                datasets: [{
+                    label: '特征分布',
+                    data: cityData.scores,
+                    backgroundColor: 'rgba(108, 93, 211, 0.2)',
+                    borderColor: '#6C5DD3',
+                    pointBackgroundColor: '#6C5DD3',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                scales: {
+                    r: {
+                        angleLines: { color: '#E2E8F0' },
+                        grid: { color: '#E2E8F0' },
+                        pointLabels: { font: { size: 12 }, color: '#636E72' },
+                        ticks: { display: false, max: 5 }
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
+
+```
